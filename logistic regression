@@ -1,0 +1,54 @@
+!pip install scikit-learn pandas matplotlib seaborn --quiet
+
+# Imports
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+from sklearn.model_selection import train_test_split
+from sklearn.pipeline import Pipeline
+from sklearn.compose import ColumnTransformer
+from sklearn.impute import SimpleImputer
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import classification_report, ConfusionMatrixDisplay
+
+# Load dataset
+df = pd.read_csv('clean_procurement_dataset.csv')
+
+# Features and target
+y = df['overpaid']
+X = df.drop(columns=['overpaid'])
+
+# Define numeric and categorical features
+numeric_cols = X.select_dtypes(include=['int64', 'float64']).columns.tolist()
+categorical_cols = list(set(X.columns) - set(numeric_cols))
+
+# Preprocessing
+preprocessor = ColumnTransformer(transformers=[
+    ('num', SimpleImputer(strategy='median'), numeric_cols),
+    ('cat', SimpleImputer(strategy='most_frequent'), categorical_cols)
+])
+
+# Create pipeline with Logistic Regression
+pipeline = Pipeline(steps=[
+    ('preprocessor', preprocessor),
+    ('model', LogisticRegression(max_iter=1000, class_weight='balanced', random_state=42))
+])
+
+# Split data and train
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.2, random_state=42
+)
+
+pipeline.fit(X_train, y_train)
+
+# Evaluation
+y_pred = pipeline.predict(X_test)
+
+print("=== Classification Report (Logistic Regression) ===")
+print(classification_report(y_test, y_pred))
+
+ConfusionMatrixDisplay.from_estimator(pipeline, X_test, y_test)
+plt.title("Confusion Matrix — Logistic Regression")
+plt.show()
