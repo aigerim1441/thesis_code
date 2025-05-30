@@ -1,0 +1,57 @@
+!pip install xgboost --quiet
+
+# Imports
+from xgboost import XGBClassifier
+from sklearn.pipeline import Pipeline
+from sklearn.metrics import classification_report, ConfusionMatrixDisplay
+import matplotlib.pyplot as plt
+import seaborn as sns
+import pandas as pd
+
+# Define pipeline with XGBoost
+pipeline = Pipeline(steps=[
+    ('preprocessor', preprocessor),  # assumes you have preprocessing defined
+    ('model', XGBClassifier(
+        n_estimators=100,
+        learning_rate=0.1,
+        max_depth=4,
+        scale_pos_weight=1.75,       # to balance class imbalance
+        use_label_encoder=False,
+        eval_metric='logloss',
+        random_state=42
+    ))
+])
+
+# Train the model
+pipeline.fit(X_train, y_train)
+
+# Predictions
+y_pred = pipeline.predict(X_test)
+
+# Classification report
+print("=== Classification Report (XGBoost) ===")
+print(classification_report(y_test, y_pred))
+
+# Confusion matrix
+ConfusionMatrixDisplay.from_estimator(pipeline, X_test, y_test)
+plt.title("Confusion Matrix — XGBoost")
+plt.show()
+
+# Feature importance
+X_test_transformed = pipeline.named_steps['preprocessor'].transform(X_test)
+feature_names = numeric_cols + categorical_cols  # ensure these are defined
+importances = pipeline.named_steps['model'].feature_importances_
+
+importance_df = pd.DataFrame({
+    'feature': feature_names,
+    'importance': importances
+}).sort_values(by='importance', ascending=False).head(15)
+
+# Plot top 15 features
+plt.figure(figsize=(10, 6))
+sns.barplot(data=importance_df, x='importance', y='feature')
+plt.title("Top 15 Features — XGBoost")
+plt.xlabel("Importance")
+plt.ylabel("Feature")
+plt.tight_layout()
+plt.show()
