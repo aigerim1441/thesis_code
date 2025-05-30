@@ -1,0 +1,76 @@
+import requests
+import pandas as pd
+import re
+
+# Configuration 
+DATE_FROM = "2025-01-01"
+DATE_TO = "2025-01-07"
+API_KEY = "c23..." # here is the authorization token that was given after official request 
+
+BASE_URL = f"https://ows.goszakup.gov.kz/v3/lots?date_from={DATE_FROM}&date_to={DATE_TO}"
+
+# Keywords used to identify services 
+EXCLUDE_KEYWORDS = [
+    "услуга", "услуги", "работа", "работы", "работ",
+    "обслуживание", "ремонт", "монтаж", "разработка",
+    "проектирование", "обследование", "консультация",
+    "обучение", "экспертиза", "строительство",
+    "инженерные работы", "поставка услуг",
+    "закупка услуг", "оказание услуг"
+]
+
+
+def fetch_all_lots():
+    headers = {
+        "Authorization": f"Bearer {API_KEY}",
+        "Content-Type": "application/json"
+    }
+
+    all_items = []
+    next_page = BASE_URL
+
+    while next_page:
+        response = requests.get(next_page, headers=headers)
+        if response.status_code != 200:
+            print(f"[Error] Request failed with status code: {response.status_code}")
+            break
+
+        data = response.json()
+        items = data.get("items", [])
+        all_items.extend(items)
+
+        next_page_path = data.get("next_page")
+        next_page = f"https://ows.goszakup.gov.kz{next_page_path}" if next_page_path else None
+
+        print(f"[Fetched] {len(all_items)} records so far...")
+
+    return all_items
+
+
+def contains_keywords(text, keywords):
+    """Check if the given text contains any of the specified keywords."""
+    return any(re.search(rf"\b{re.escape(word)}\b", text) for word in keywords)
+
+
+def is_goods_lot(lot):
+    """Return True if the lot is likely a goods-related item (not a service)."""
+    name = lot.get("name_ru", "").lower()
+    description = lot.get("description_ru", "").lower()
+
+    if contains_keywords(name, EXCLUDE_KEYWORDS) or contains_keywords(description, EXCLUDE_KEYWORDS):
+        return False
+    return True
+
+
+def save_to_csv(data, filename):
+    df = pd.DataFrame(data)
+    df.to_csv(filename, index=False, encoding="utf-8")
+    print(f"[Saved] {len(df)} filtered records to '{filename}'")
+
+
+if __name__ == "__main__":
+    print(f"[Start] Downloading lots from {DATE_FROM} to {DATE_TO}")
+    all_lots = fetch_all_lots()
+    filtered_lots = list(filter(is_goods_lot, all_lots))
+    output_file = f"goszakup_filtered_{DATE_FROM}_to_{DATE_TO}.csv"
+    save_to_csv(filtered_lots, output_file)
